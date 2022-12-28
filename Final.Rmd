@@ -1,0 +1,201 @@
+---
+title: "DAPP"
+author: "Jueun Park, Casey Kotbyul Kim, Yoorae Kim"
+date: "11/04/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(gganimate)
+library(ggridges)
+```
+
+
+### Importing the Dataset `DAPP_Data.csv`.
+
+After wrangling the original dataset in excel, we converted the file format into csv and brought in the data. Our data contains the 8 trails that are used frequently compared to other ones. 
+```{r}
+dapp<- read.csv("DAPP_Data.csv")
+head(dapp)
+```
+
+### Visualization that gives an overview of trail usage frequency
+
+In order to make a pie chart, we created a new summary dataframe that includes the percent use of each trail. 
+```{r}
+total <- dapp %>%
+  select(count,Region) %>%
+  group_by(Region) %>%
+  summarize(total_count = sum(count),
+            percentage = round(100* (total_count / 43318),1))
+
+```
+
+Below is the pie chart that shows the percent usage for each trail represented in our data. 
+```{r}
+ggplot(total, aes(x="", y=percentage, fill=Region)) +
+  geom_bar(stat="identity", width=1, color="white") +
+  coord_polar("y", start=0) +
+  theme_void() +
+  geom_text(aes(label = percentage), position = position_stack(vjust = 0.5),color = "white", size=4) +
+  scale_fill_brewer(palette="Set2") +
+  ggtitle("Percent usage of each trail") +
+  labs(caption = "Pie chart showing the percent usage for each trail")
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Below is the boxplot that compares the distribution of usage frequency for each trail. 
+```{r}
+ggplot(dapp, aes(x = Region, y = count, fill = Region)) +
+  geom_boxplot() +
+  labs(title = "Usage Frequency of Each Trail",
+       x = "Region",
+       y = "Frequency",
+       caption = "Boxplot showing the overview of usage for each trail") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  ggthemes::theme_clean()
+
+```
+
+In order to make a line plot that shows the overall change in trail usage over time, we created a new summary dataframe that groups region and time, having the total usage frequency for each group. 
+```{r}
+dapp_allregion<- dapp %>%
+  group_by(Region,Time) %>% 
+  summarise(total = sum(count))
+dapp_allregion
+```
+
+Below is the animated line plot that shows the usage trend over a day where each lind represents each trail. 
+```{r}
+overview <- dapp_allregion %>%
+  ggplot(aes(x = Time, y = total, colour = Region)) + 
+  geom_line(size = 1.0) +
+  geom_point(size = 1) +
+  geom_text(aes(label = Time)) +
+  geom_text(aes(label = total)) +
+  theme_dark() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  ggtitle("Region overview by time") +
+  labs(x = "Time of day", y = "Frequency",
+       caption = "Lineplot showing the change in usage frequency of Region F and Region G")+
+  transition_reveal(Time)
+animate(overview, fps = 2, nframes = 50, width = 1200)
+
+overview1 <- animate(overview, nframes = 50, fps = 2, width = 1200,
+              renderer = gifski_renderer())
+
+anim_save("overview.gif", animation = overview1)
+```
+
+
+In order to make a barplot that give information on how the usage frequency differs by each day of the week, we created a new summary dataframe that groups region and day, having the total usage frequency for each group. 
+```{r}
+dapp_weekday <- dapp %>% 
+  group_by(Region,day) %>% 
+  summarise(total = sum(count))
+dapp_weekday
+```
+
+Below is the barplot that compares the overall trail usage frequency by each day of the week. 
+```{r}
+p4 <- ggplot(dapp_weekday, aes(x=as.factor(day), y=total)) +
+      geom_bar(stat="identity", aes(fill=Region)) +
+      facet_wrap(~Region)+
+      labs(x = "Day",y = "Frequency", title = "Total Usage Frequency by Trail" )+
+      scale_x_discrete(labels=c("Mon","Tue","Wed","Thur","Fri","Sat","Sun"))+
+      theme(axis.text.x = element_text(angle = 30, size = 9))
+  
+p4
+```
+
+
+### Comparing F trail and G trail 
+
+According to the map that we received, F trail and G trail are in the same region with a road called Moots Run Road separating them. When we calculated the sum usage frequency of their trails, we discovered that the value for F trail is greater by around 300 compared to that of G trail. This led us to grow curious if this is a significant difference and why a single road in between those trails potentially causes this occurrence. 
+
+
+In order to make a barplot that compares the usage frquency of trail F and trail G, we created a new summary dataframe that contains the total usage frequency of those two trails. 
+```{r}
+dapp_FG <- dapp %>% 
+  filter(Region == "F" | Region == "G") %>% 
+  group_by(Region) %>% 
+  summarise(total = sum(count))
+dapp_FG
+```
+
+
+Below is the barplot that compares the total usage frequency of trail F and G. 
+```{r}
+ggplot(dapp_FG, aes(x = Region, y = total)) + 
+  geom_col(aes(fill = Region)) +
+  labs(title = "Total Usage Frequency of Trail F and G",
+       x = "Region", 
+       y = "Frequency",
+       caption = "Barplot comparing the total usage frequency of trail F and G") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  ggthemes::theme_clean()
+```
+
+
+Before doing a t-test to check if there is a statistical evidence suggesting their significant difference, we filtered our dataset to only contain F and G since t-test only allows comparison between two groups. 
+```{r}
+Region_FG <- dapp %>%
+  filter(Region == "G" | Region == "F")
+head(Region_FG)
+```
+
+
+Below is the t.test and its outcome. 
+```{r}
+Region_tTest <- t.test(count ~ Region, Region_FG)
+Region_tTest
+```
+
+According to the t-test, there is a significant difference between those two trails that is separated by Moots Run Road. 
+
+### Comparing (P,N) trail and (J,K) trail 
+
+According to the map we received, P and N are on the street where Chase bank and CVS are located while J and K are on the opposite street where Dragon Village and the post office are located. Similar to F and G, the difference in trail usage is existing between these two streets although they are basically in the same region. We once more grew curious if this difference is significant and why P and N street (Chase,CVS) is used more by people compared to the J and K street which stays right across the road. Therefore, we took similar analysis steps as we did for F and G trails. 
+
+
+In order to make a barplot that compares the usage frequency of trail P,N,J, and K, we created a new summary dataframe that contains the total usage frequency of those four trails. 
+```{r}
+dapp_NPJK <- dapp %>%
+  filter(Region == "P" | Region == "N" | Region == "J" | Region == "K") %>%
+  group_by(Region) %>%
+  summarise(total = sum(count))
+dapp_NPJK
+```
+
+Below is the barplot that compares the total usage frequency of trail N,P,J, and K.
+```{r}
+ggplot(dapp_NPJK, aes(x = Region, y = total)) + 
+  geom_col(aes(fill = Region)) +
+  labs(title = "Total Usage Frequency of Trail N, P, J and K",
+       x = "Region", 
+       y = "Frequency",
+       caption = "Barplot comparing the toal usage frequency of trail N,P,J, and K") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  ggthemes::theme_clean()
+```
+
+
+Since we are trying to see if there is a significant difference between the usage frequency of Chase/CVS street and Dragon Village/Post office street, we created a new column that combines P and N as one and J and K as another where the value of "More" indicates P and N street and the value of "Less" indicates J and K street. 
+```{r}
+npjk <- dapp %>%
+  filter(Region == 'N' | Region == 'P' | Region == 'J' | Region == 'K') %>%
+  mutate(crowded = ifelse(Region == 'P' | Region == 'N', 'More','Less'))
+head(npjk)
+```
+
+Below is the t-test that compares the mean usage frequency of Chase/CVS street and Dragon village/Post office street. 
+```{r}
+t.test(count ~ crowded, npjk)
+```
+
+According to the t-test, there is again a significant difference between those two streets that face each other. 
+
+
